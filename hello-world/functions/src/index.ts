@@ -41,7 +41,7 @@ interface BotResponse {
   blocks: Array<SectionBlock | ImageBlock>
 }
 
-export const helloWorld = functions.https.onRequest(async (request, response) => {
+export const getToken = functions.https.onRequest(async (request, response) => {
   functions.logger.debug("Request body: ", request.body);
   const text: string = request.body.text;
   const symbol = text.toLowerCase()
