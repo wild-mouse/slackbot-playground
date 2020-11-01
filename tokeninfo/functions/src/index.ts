@@ -41,6 +41,21 @@ interface BotResponse {
   blocks: Array<SectionBlock | ImageBlock>
 }
 
+const prepareTokensInfo = (tokens: TokenIndex[], symbol: string): BotResponse => {
+  const blockText: string = `Found a ${symbol.toUpperCase()} tokens.\n` +
+      tokens.map(token => {
+        return `• Name: ${token.name}, Symbol: ${token.symbol.toUpperCase()}`
+      }).join("\n")
+  const sectionBlock: SectionBlock = {
+    type: "section",
+    text: {type: "mrkdwn", text: blockText}
+  }
+  return {
+    response_type: "in_channel",
+    blocks: [sectionBlock]
+  } as BotResponse
+}
+
 const prepareTokenInfo = (index: TokenIndex, token: Token): BotResponse => {
   const detailUrl: string = `https://www.coingecko.com/en/coins/${index.id}`
   const blockText: string = [
@@ -61,39 +76,60 @@ const prepareTokenInfo = (index: TokenIndex, token: Token): BotResponse => {
     image_url: token.image.small,
     alt_text: "Logo"
   }
-  const botResponse: BotResponse = { "blocks": [ sectionBlock, imageBlock ] }
-  return botResponse
+  return {
+    response_type: "in_channel",
+    blocks: [ sectionBlock, imageBlock ]
+  } as BotResponse
 }
 
 export const getToken = functions.https.onRequest(async (request, response) => {
   functions.logger.debug("Request body: ", request.body);
   const text: string = request.body.text;
-  const symbol = text.toLowerCase()
-  const errorResponse = {
-    response_type: "ephemeral",
-    text: `Token not found: Token symbol: ${symbol}`
-  }
-  if (!text || text.split(" ").length !== 1) {
-    response.status(200).send(errorResponse)
+  if (!text || text.split(" ").length !== 2) {
+    response.status(200).send({
+      response_type: "ephemeral",
+      text: `Invalid request.`
+    })
     return
   }
+  const keyValue = text.split(" ")
   const getListUrl = "https://api.coingecko.com/api/v3/coins/list"
-  const list: TokenIndex[] = await axios.get(getListUrl)
+  const indexList: TokenIndex[] = await axios.get(getListUrl)
       .then((res: AxiosResponse<TokenIndex[]>) => res.data)
-
-  const index = list.find((tokenIndex) => tokenIndex.symbol === symbol)
-  if (index === undefined) {
-    functions.logger.info(`Token not found. CoinGecko token symbol: ${symbol}`);
-    response.status(200).send(errorResponse)
+  if (keyValue[0] !== "name" && keyValue[0] !== "symbol") {
+    response.status(200).send({
+      response_type: "ephemeral",
+      text: `Invalid request.`
+    })
     return
   }
 
+  const key = keyValue[0].toLowerCase() as "name" | "symbol"
+  const value = keyValue[1].toLowerCase()
+  if (key === "symbol") {
+    const foundTokens = indexList.filter(target => target.symbol === value)
+    if (foundTokens.length > 1) {
+      response.send(prepareTokensInfo(foundTokens, value));
+      return
+    }
+  }
+
+  const index = indexList.find((tokenIndex) => tokenIndex[key].toLowerCase() === value)
+  if (index === undefined) {
+    response.status(200).send({
+      response_type: "ephemeral",
+      text: `Token not found.`
+    })
+    return
+  }
   const getTokenUrl = `https://api.coingecko.com/api/v3/coins/${index.id}`
   const token = await axios.get(getTokenUrl)
       .then((res: AxiosResponse<Token>) => res.data)
   if (token === undefined) {
-    functions.logger.info(`Token not found. CoinGecko token id: ${index.id}`);
-    response.status(200).send(errorResponse)
+    response.status(200).send({
+      response_type: "ephemeral",
+      text: `Token not found.`
+    })
     return
   }
 
