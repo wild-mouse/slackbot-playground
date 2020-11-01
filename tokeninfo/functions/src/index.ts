@@ -41,6 +41,30 @@ interface BotResponse {
   blocks: Array<SectionBlock | ImageBlock>
 }
 
+const prepareTokenInfo = (index: TokenIndex, token: Token): BotResponse => {
+  const detailUrl: string = `https://www.coingecko.com/en/coins/${index.id}`
+  const blockText: string = [
+    `Found a ${token.symbol.toUpperCase()} token.`,
+    `Token name: ${token.name}`,
+    `Token symbol: ${token.symbol.toUpperCase()}`,
+    `Current prices:`,
+    `• JPY: ${token.market_data.current_price.jpy}`,
+    `• USD: ${token.market_data.current_price.usd}`,
+    `More detail: ${detailUrl}`
+  ].join("\n")
+  const sectionBlock: SectionBlock = {
+    type: "section",
+    text: { type: "mrkdwn", text: blockText }
+  }
+  const imageBlock: ImageBlock = {
+    type: "image",
+    image_url: token.image.small,
+    alt_text: "Logo"
+  }
+  const botResponse: BotResponse = { "blocks": [ sectionBlock, imageBlock ] }
+  return botResponse
+}
+
 export const getToken = functions.https.onRequest(async (request, response) => {
   functions.logger.debug("Request body: ", request.body);
   const text: string = request.body.text;
@@ -73,25 +97,5 @@ export const getToken = functions.https.onRequest(async (request, response) => {
     return
   }
 
-  const detailUrl: string = `https://www.coingecko.com/en/coins/${index.id}`
-  const blockText: string = [
-    `Found a ${token.symbol.toUpperCase()} token.`,
-    `Token name: ${token.name}`,
-    `Token symbol: ${token.symbol.toUpperCase()}`,
-    `Current prices:`,
-    `• JPY: ${token.market_data.current_price.jpy}`,
-    `• USD: ${token.market_data.current_price.usd}`,
-    `More detail: ${detailUrl}`
-  ].join("\n")
-  const sectionBlock: SectionBlock = {
-      type: "section",
-      text: { type: "mrkdwn", text: blockText }
-    }
-  const imageBlock: ImageBlock = {
-    type: "image",
-    image_url: token.image.small,
-    alt_text: "Logo"
-  }
-  const botResponse: BotResponse = { "blocks": [ sectionBlock, imageBlock ] }
-  response.send(botResponse);
+  response.send(prepareTokenInfo(index, token));
 });
